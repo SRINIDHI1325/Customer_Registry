@@ -36,12 +36,12 @@ app.use(errorHandler);
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
-    console.log("MongoDB connected successfully");
+    console.log("Mongodbb connected successfully");
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error("MongoDB connection failed:", err.message);
+    console.error("Mongodb connection failed:", err.message);
     process.exit(1);
   });
