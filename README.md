@@ -26,7 +26,7 @@ Runs at `http://localhost:5000`. Requires MongoDB running locally (or an Atlas U
 **2. Frontend** (in a second terminal):
 ```bash
 cd client
-npx serve .
+npx run dev
 ```
 Opens at a local URL (e.g. `http://localhost:3000`) — open that in your browser.
 
