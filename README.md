@@ -18,7 +18,6 @@ See `server/README.md` and `client/README.md` for setup details on each.
 **1. Backend:**
 ```bash
 cd server
-npm install
 npm run dev
 ```
 Runs at `http://localhost:5000`. Requires MongoDB running locally (or an Atlas URI in `.env`).
@@ -26,7 +25,7 @@ Runs at `http://localhost:5000`. Requires MongoDB running locally (or an Atlas U
 **2. Frontend** (in a second terminal):
 ```bash
 cd client
-npx run dev
+npm run dev
 ```
 Opens at a local URL (e.g. `http://localhost:3000`) — open that in your browser.
 
