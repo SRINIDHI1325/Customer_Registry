@@ -65,6 +65,8 @@ const Customer = () => {
   const [filterCategory, setFilterCategory] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   // Drawer / Chat state
   const [activeComplaint, setActiveComplaint] = useState(null);
@@ -73,7 +75,7 @@ const Customer = () => {
   const [newMessage, setNewMessage] = useState("");
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
-  
+
   // Rating form state
   const [ratingVal, setRatingVal] = useState(5);
   const [feedbackText, setFeedbackText] = useState("");
@@ -86,7 +88,16 @@ const Customer = () => {
   const fetchComplaints = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const { data } = await API.get("/complaints");
+      // Build query string with filters
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (filterCategory) params.append("category", filterCategory);
+      if (filterPriority) params.append("priority", filterPriority);
+      if (filterStatus) params.append("status", filterStatus);
+      if (filterDateFrom) params.append("dateFrom", filterDateFrom);
+      if (filterDateTo) params.append("dateTo", filterDateTo);
+
+      const { data } = await API.get(`/complaints?${params.toString()}`);
       if (Array.isArray(data)) setComplaints(data);
       else if (Array.isArray(data.complaints)) setComplaints(data.complaints);
       else setComplaints([]);
@@ -100,7 +111,14 @@ const Customer = () => {
 
   useEffect(() => {
     fetchComplaints();
-  }, []);
+  }, [
+    searchQuery,
+    filterCategory,
+    filterPriority,
+    filterStatus,
+    filterDateFrom,
+    filterDateTo,
+  ]);
 
   // Poll for messages when drawer is open
   useEffect(() => {
@@ -168,17 +186,20 @@ const Customer = () => {
 
     setSubmittingFeedback(true);
     try {
-      const { data } = await API.put(`/complaints/${activeComplaint._id}/feedback`, {
-        rating: ratingVal,
-        feedback: feedbackText,
-      });
+      const { data } = await API.put(
+        `/complaints/${activeComplaint._id}/feedback`,
+        {
+          rating: ratingVal,
+          feedback: feedbackText,
+        },
+      );
 
       if (data.success) {
         showToast("Feedback submitted successfully. Thank you!", "success");
         // Update local status
         setActiveComplaint(data.complaint);
         setComplaints((prev) =>
-          prev.map((c) => (c._id === data.complaint._id ? data.complaint : c))
+          prev.map((c) => (c._id === data.complaint._id ? data.complaint : c)),
         );
         setFeedbackText("");
       }
@@ -205,7 +226,12 @@ const Customer = () => {
         showToast("Complaint submitted successfully", "success");
       }
 
-      setForm({ title: "", description: "", category: "product", priority: "medium" });
+      setForm({
+        title: "",
+        description: "",
+        category: "product",
+        priority: "medium",
+      });
       setEditingId(null);
       fetchComplaints();
       setSearchParams({ view: "my-complaints" }); // redirect to my complaints list
@@ -215,7 +241,8 @@ const Customer = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this complaint?")) return;
+    if (!window.confirm("Are you sure you want to delete this complaint?"))
+      return;
 
     try {
       await API.delete(`/complaints/${id}`);
@@ -251,17 +278,27 @@ const Customer = () => {
   // Stats calculators
   const totalCount = complaints.length;
   const openCount = complaints.filter((c) => c.status === "open").length;
-  const inProgressCount = complaints.filter((c) => c.status === "in-progress").length;
-  const escalatedCount = complaints.filter((c) => c.status === "escalated").length;
-  const resolvedCount = complaints.filter((c) => c.status === "resolved" || c.status === "closed").length;
+  const inProgressCount = complaints.filter(
+    (c) => c.status === "in-progress",
+  ).length;
+  const escalatedCount = complaints.filter(
+    (c) => c.status === "escalated",
+  ).length;
+  const resolvedCount = complaints.filter(
+    (c) => c.status === "resolved" || c.status === "closed",
+  ).length;
 
   // Filter complaints list
   const filteredComplaints = complaints.filter((c) => {
     const matchesSearch =
       c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = filterCategory ? c.category === filterCategory : true;
-    const matchesPriority = filterPriority ? c.priority === filterPriority : true;
+    const matchesCategory = filterCategory
+      ? c.category === filterCategory
+      : true;
+    const matchesPriority = filterPriority
+      ? c.priority === filterPriority
+      : true;
     const matchesStatus = filterStatus ? c.status === filterStatus : true;
 
     return matchesSearch && matchesCategory && matchesPriority && matchesStatus;
@@ -280,7 +317,8 @@ const Customer = () => {
               How can we help you today?
             </h1>
             <p className="text-indigo-100 text-sm mt-1 max-w-xl">
-              File a complaint, communicate in real-time with support specialists, and track resolutions.
+              File a complaint, communicate in real-time with support
+              specialists, and track resolutions.
             </p>
           </div>
           <button
@@ -299,18 +337,42 @@ const Customer = () => {
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
-              { label: "Total Claims", count: totalCount, color: "text-slate-700 bg-white" },
-              { label: "Open", count: openCount, color: "text-rose-600 bg-white" },
-              { label: "In Progress", count: inProgressCount, color: "text-amber-600 bg-white" },
-              { label: "Escalated", count: escalatedCount, color: "text-red-600 bg-white" },
-              { label: "Resolved", count: resolvedCount, color: "text-emerald-600 bg-white" },
+              {
+                label: "Total Claims",
+                count: totalCount,
+                color: "text-slate-700 bg-white",
+              },
+              {
+                label: "Open",
+                count: openCount,
+                color: "text-rose-600 bg-white",
+              },
+              {
+                label: "In Progress",
+                count: inProgressCount,
+                color: "text-amber-600 bg-white",
+              },
+              {
+                label: "Escalated",
+                count: escalatedCount,
+                color: "text-red-600 bg-white",
+              },
+              {
+                label: "Resolved",
+                count: resolvedCount,
+                color: "text-emerald-600 bg-white",
+              },
             ].map((stat, idx) => (
               <div
                 key={idx}
                 className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
               >
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{stat.label}</p>
-                <h3 className={`text-3xl font-bold mt-2 font-mono ${stat.color.split(" ")[0]}`}>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  {stat.label}
+                </p>
+                <h3
+                  className={`text-3xl font-bold mt-2 font-mono ${stat.color.split(" ")[0]}`}
+                >
                   {stat.count}
                 </h3>
               </div>
@@ -327,16 +389,31 @@ const Customer = () => {
                 </div>
                 <div className="space-y-3.5 text-sm text-slate-600">
                   <div className="flex gap-3">
-                    <span className="h-5 w-5 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">1</span>
-                    <p>Describe your issue clearly. Select the correct category and urgency level.</p>
+                    <span className="h-5 w-5 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                      1
+                    </span>
+                    <p>
+                      Describe your issue clearly. Select the correct category
+                      and urgency level.
+                    </p>
                   </div>
                   <div className="flex gap-3">
-                    <span className="h-5 w-5 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">2</span>
-                    <p>Track progress from the "My Complaints" tab. Look out for the status changing to "In Progress".</p>
+                    <span className="h-5 w-5 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                      2
+                    </span>
+                    <p>
+                      Track progress from the "My Complaints" tab. Look out for
+                      the status changing to "In Progress".
+                    </p>
                   </div>
                   <div className="flex gap-3">
-                    <span className="h-5 w-5 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">3</span>
-                    <p>Use the Chat Drawer to correspond with your assigned support specialist.</p>
+                    <span className="h-5 w-5 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                      3
+                    </span>
+                    <p>
+                      Use the Chat Drawer to correspond with your assigned
+                      support specialist.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -347,7 +424,10 @@ const Customer = () => {
                   <h3>Working Hours</h3>
                 </div>
                 <p className="text-sm text-slate-600">
-                  Our specialists are active <strong>Monday - Friday, 9:00 AM to 6:00 PM</strong>. Urgent/escalated tickets will be addressed outside standard hours.
+                  Our specialists are active{" "}
+                  <strong>Monday - Friday, 9:00 AM to 6:00 PM</strong>.
+                  Urgent/escalated tickets will be addressed outside standard
+                  hours.
                 </p>
               </div>
             </div>
@@ -355,7 +435,9 @@ const Customer = () => {
             {/* Recent Complaints */}
             <div className="md:col-span-2 space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-slate-800 font-bold text-lg">Recent Complaints</h2>
+                <h2 className="text-slate-800 font-bold text-lg">
+                  Recent Complaints
+                </h2>
                 <button
                   onClick={() => setSearchParams({ view: "my-complaints" })}
                   className="text-indigo-600 hover:text-indigo-700 text-sm font-semibold flex items-center gap-1"
@@ -367,7 +449,9 @@ const Customer = () => {
               {loading ? (
                 <div className="bg-white p-12 rounded-2xl border border-slate-100 shadow-sm text-center flex flex-col items-center justify-center gap-3">
                   <RefreshCw className="h-8 w-8 text-slate-400 animate-spin" />
-                  <p className="text-sm text-slate-500">Loading your complaints...</p>
+                  <p className="text-sm text-slate-500">
+                    Loading your complaints...
+                  </p>
                 </div>
               ) : complaints.length > 0 ? (
                 <div className="space-y-4">
@@ -378,15 +462,24 @@ const Customer = () => {
                     >
                       <div className="flex justify-between items-start gap-4">
                         <div>
-                          <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[0]} ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[1]}`}>
+                          <span
+                            className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[0]} ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[1]}`}
+                          >
                             {c.priority || "medium"}
                           </span>
-                          <h3 className="font-bold text-slate-800 text-base mt-2">{c.title}</h3>
+                          <h3 className="font-bold text-slate-800 text-base mt-2">
+                            {c.title}
+                          </h3>
                           <span className="text-xs text-slate-400 block mt-1">
-                            Category: {CATEGORY_LABELS[c.category] || c.category || "General"}
+                            Category:{" "}
+                            {CATEGORY_LABELS[c.category] ||
+                              c.category ||
+                              "General"}
                           </span>
                         </div>
-                        <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${STATUS_STYLES[c.status || "open"]}`}>
+                        <span
+                          className={`text-xs font-semibold px-3 py-1 rounded-full border ${STATUS_STYLES[c.status || "open"]}`}
+                        >
                           {c.status}
                         </span>
                       </div>
@@ -397,7 +490,9 @@ const Customer = () => {
 
                       <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
                         <span className="text-xs text-slate-400">
-                          {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ""}
+                          {c.createdAt
+                            ? new Date(c.createdAt).toLocaleDateString()
+                            : ""}
                         </span>
                         <button
                           onClick={() => openDrawer(c)}
@@ -412,10 +507,16 @@ const Customer = () => {
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-dashed border-slate-200 py-16 text-center flex flex-col items-center justify-center gap-3">
-                  <Inbox className="h-10 w-10 text-slate-300" strokeWidth={1.5} />
-                  <p className="text-sm font-semibold text-slate-700">No complaints registered yet</p>
+                  <Inbox
+                    className="h-10 w-10 text-slate-300"
+                    strokeWidth={1.5}
+                  />
+                  <p className="text-sm font-semibold text-slate-700">
+                    No complaints registered yet
+                  </p>
                   <p className="text-xs text-slate-500 max-w-[240px] mx-auto">
-                    Click "Raise New Complaint" above to submit your first service ticket.
+                    Click "Raise New Complaint" above to submit your first
+                    service ticket.
                   </p>
                 </div>
               )}
@@ -438,7 +539,7 @@ const Customer = () => {
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 text-sm outline-none transition-all text-slate-800 placeholder:text-slate-400"
               />
             </div>
-            
+
             <div className="grid grid-cols-3 gap-3 shrink-0">
               <div>
                 <select
@@ -484,13 +585,53 @@ const Customer = () => {
                 </select>
               </div>
             </div>
+
+            {/* Date Range Filters */}
+            <div className="grid grid-cols-2 gap-2 shrink-0">
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="w-full border border-slate-200 px-3 py-3 rounded-xl text-xs text-slate-700 outline-none focus:border-indigo-400 bg-white"
+              />
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="w-full border border-slate-200 px-3 py-3 rounded-xl text-xs text-slate-700 outline-none focus:border-indigo-400 bg-white"
+              />
+            </div>
+
+            {/* Clear Filters Button */}
+            {(searchQuery ||
+              filterCategory ||
+              filterPriority ||
+              filterStatus ||
+              filterDateFrom ||
+              filterDateTo) && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterCategory("");
+                  setFilterPriority("");
+                  setFilterStatus("");
+                  setFilterDateFrom("");
+                  setFilterDateTo("");
+                }}
+                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors shrink-0"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
 
           {/* List layout */}
           {loading ? (
             <div className="bg-white p-24 rounded-2xl border border-slate-100 shadow-sm text-center flex flex-col items-center justify-center gap-3">
               <RefreshCw className="h-8 w-8 text-indigo-500 animate-spin" />
-              <p className="text-sm text-slate-500 font-medium">Fetching complaints list...</p>
+              <p className="text-sm text-slate-500 font-medium">
+                Fetching complaints list...
+              </p>
             </div>
           ) : filteredComplaints.length > 0 ? (
             <div className="grid md:grid-cols-2 gap-5">
@@ -502,7 +643,9 @@ const Customer = () => {
                   <div>
                     {/* Tags */}
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[0]} ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[1]}`}>
+                      <span
+                        className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[0]} ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[1]}`}
+                      >
                         {c.priority || "medium"}
                       </span>
                       <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border text-slate-600 bg-slate-50 border-slate-100">
@@ -510,7 +653,9 @@ const Customer = () => {
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-slate-800 text-lg mt-3">{c.title}</h3>
+                    <h3 className="font-bold text-slate-800 text-lg mt-3">
+                      {c.title}
+                    </h3>
                     <p className="text-sm text-slate-500 mt-2.5 leading-relaxed line-clamp-3">
                       {c.description}
                     </p>
@@ -528,7 +673,9 @@ const Customer = () => {
 
                   <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${STATUS_STYLES[c.status || "open"]}`}>
+                      <span
+                        className={`text-xs font-semibold px-3 py-1 rounded-full border ${STATUS_STYLES[c.status || "open"]}`}
+                      >
                         {c.status}
                       </span>
                       {c.rating && (
@@ -558,7 +705,7 @@ const Customer = () => {
                           </button>
                         </>
                       )}
-                      
+
                       <button
                         onClick={() => openDrawer(c)}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1"
@@ -574,9 +721,12 @@ const Customer = () => {
           ) : (
             <div className="bg-white rounded-2xl border border-dashed border-slate-200 py-24 text-center flex flex-col items-center justify-center gap-3">
               <Inbox className="h-12 w-12 text-slate-300" strokeWidth={1.5} />
-              <p className="text-base font-bold text-slate-700">No matching complaints found</p>
+              <p className="text-base font-bold text-slate-700">
+                No matching complaints found
+              </p>
               <p className="text-xs text-slate-500 max-w-[280px] mx-auto mt-1">
-                Try loosening your filters or search term to discover your tickets, or raise a new complaint.
+                Try loosening your filters or search term to discover your
+                tickets, or raise a new complaint.
               </p>
             </div>
           )}
@@ -587,10 +737,13 @@ const Customer = () => {
         <div className="max-w-xl mx-auto bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-md">
           <div className="border-b pb-4 mb-6">
             <h2 className="text-xl font-bold text-slate-800">
-              {editingId ? "Edit Complaint Details" : "Register a Support Complaint"}
+              {editingId
+                ? "Edit Complaint Details"
+                : "Register a Support Complaint"}
             </h2>
             <p className="text-xs text-slate-500 mt-1">
-              Provide necessary details and our customer care team will start analyzing it immediately.
+              Provide necessary details and our customer care team will start
+              analyzing it immediately.
             </p>
           </div>
 
@@ -614,7 +767,9 @@ const Customer = () => {
                 </label>
                 <select
                   value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, category: e.target.value })
+                  }
                   className="border border-slate-200 p-3 w-full rounded-xl text-sm text-slate-800 outline-none bg-white transition-all focus:border-indigo-400"
                 >
                   <option value="product">Product Issue</option>
@@ -631,13 +786,17 @@ const Customer = () => {
                 </label>
                 <select
                   value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, priority: e.target.value })
+                  }
                   className="border border-slate-200 p-3 w-full rounded-xl text-sm text-slate-800 outline-none bg-white transition-all focus:border-indigo-400"
                 >
                   <option value="low">Low (General question)</option>
                   <option value="medium">Medium (Standard request)</option>
                   <option value="high">High (Service blocking issue)</option>
-                  <option value="urgent">Urgent (Immediate action needed)</option>
+                  <option value="urgent">
+                    Urgent (Immediate action needed)
+                  </option>
                 </select>
               </div>
             </div>
@@ -651,7 +810,9 @@ const Customer = () => {
                 className="border border-slate-200 p-3 w-full rounded-xl text-sm text-slate-800 placeholder:text-slate-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 resize-none"
                 placeholder="Describe your concern. Include as much contextual information, error messages, and timelines as possible to help us solve it quickly."
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
               />
             </div>
 
@@ -661,7 +822,12 @@ const Customer = () => {
                   type="button"
                   onClick={() => {
                     setEditingId(null);
-                    setForm({ title: "", description: "", category: "product", priority: "medium" });
+                    setForm({
+                      title: "",
+                      description: "",
+                      category: "product",
+                      priority: "medium",
+                    });
                     setSearchParams({ view: "my-complaints" });
                   }}
                   className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-3 rounded-xl transition-all"
@@ -716,35 +882,63 @@ const Customer = () => {
                     {/* Complaint Overview Section */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Complaint Profile</h3>
-                        <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[activeComplaint.status]}`}>
+                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                          Complaint Profile
+                        </h3>
+                        <span
+                          className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[activeComplaint.status]}`}
+                        >
                           {activeComplaint.status}
                         </span>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-4 text-xs">
                         <div>
-                          <p className="font-semibold text-slate-400">CATEGORY</p>
-                          <p className="font-bold text-slate-700 mt-1">{CATEGORY_LABELS[activeComplaint.category] || activeComplaint.category || "General"}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-400">PRIORITY</p>
-                          <p className="font-bold text-slate-700 mt-1 capitalize">{activeComplaint.priority || "medium"}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-400">ASSIGNED SPECIALIST</p>
+                          <p className="font-semibold text-slate-400">
+                            CATEGORY
+                          </p>
                           <p className="font-bold text-slate-700 mt-1">
-                            {activeComplaint.assignedAgent?.name ? activeComplaint.assignedAgent.name.toUpperCase() : "ASSIGNING..."}
+                            {CATEGORY_LABELS[activeComplaint.category] ||
+                              activeComplaint.category ||
+                              "General"}
                           </p>
                         </div>
                         <div>
-                          <p className="font-semibold text-slate-400">SUBMITTED ON</p>
-                          <p className="font-bold text-slate-700 mt-1 font-mono">{activeComplaint.createdAt ? new Date(activeComplaint.createdAt).toLocaleString() : ""}</p>
+                          <p className="font-semibold text-slate-400">
+                            PRIORITY
+                          </p>
+                          <p className="font-bold text-slate-700 mt-1 capitalize">
+                            {activeComplaint.priority || "medium"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-400">
+                            ASSIGNED SPECIALIST
+                          </p>
+                          <p className="font-bold text-slate-700 mt-1">
+                            {activeComplaint.assignedAgent?.name
+                              ? activeComplaint.assignedAgent.name.toUpperCase()
+                              : "ASSIGNING..."}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-400">
+                            SUBMITTED ON
+                          </p>
+                          <p className="font-bold text-slate-700 mt-1 font-mono">
+                            {activeComplaint.createdAt
+                              ? new Date(
+                                  activeComplaint.createdAt,
+                                ).toLocaleString()
+                              : ""}
+                          </p>
                         </div>
                       </div>
 
                       <div className="border-t border-slate-200 pt-3">
-                        <p className="text-xs font-semibold text-slate-400 uppercase">Description</p>
+                        <p className="text-xs font-semibold text-slate-400 uppercase">
+                          Description
+                        </p>
                         <p className="text-sm text-slate-600 mt-1 leading-relaxed whitespace-pre-line bg-white p-3 rounded-xl border border-slate-150 shadow-inner-sm">
                           {activeComplaint.description}
                         </p>
@@ -752,21 +946,31 @@ const Customer = () => {
                     </div>
 
                     {/* Feedback Rating Block (if resolved/closed) */}
-                    {(activeComplaint.status === "resolved" || activeComplaint.status === "closed") && (
+                    {(activeComplaint.status === "resolved" ||
+                      activeComplaint.status === "closed") && (
                       <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 space-y-4">
                         <div className="flex items-center gap-2 text-emerald-800">
                           <CheckCircle className="h-5 w-5 text-emerald-600" />
-                          <h3 className="font-bold text-sm">Complaint Resolution Feedback</h3>
+                          <h3 className="font-bold text-sm">
+                            Complaint Resolution Feedback
+                          </h3>
                         </div>
 
                         {activeComplaint.rating ? (
                           <div className="bg-white p-4 rounded-xl border border-emerald-100/50 text-slate-700 space-y-2 text-sm shadow-sm">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold text-slate-500">Your Rating:</span>
+                              <span className="font-semibold text-slate-500">
+                                Your Rating:
+                              </span>
                               <div className="flex items-center gap-0.5">
-                                {[...Array(activeComplaint.rating)].map((_, i) => (
-                                  <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                ))}
+                                {[...Array(activeComplaint.rating)].map(
+                                  (_, i) => (
+                                    <Star
+                                      key={i}
+                                      className="h-4 w-4 fill-yellow-400 text-yellow-400"
+                                    />
+                                  ),
+                                )}
                               </div>
                             </div>
                             {activeComplaint.feedback && (
@@ -776,11 +980,15 @@ const Customer = () => {
                             )}
                           </div>
                         ) : (
-                          <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+                          <form
+                            onSubmit={handleFeedbackSubmit}
+                            className="space-y-4"
+                          >
                             <p className="text-xs text-emerald-700">
-                              This complaint is resolved. Please take a second to rate your experience with our specialist.
+                              This complaint is resolved. Please take a second
+                              to rate your experience with our specialist.
                             </p>
-                            
+
                             <div>
                               <label className="block text-xs font-semibold text-emerald-800 mb-1.5">
                                 Star Rating
@@ -812,7 +1020,9 @@ const Customer = () => {
                               <textarea
                                 rows={2}
                                 value={feedbackText}
-                                onChange={(e) => setFeedbackText(e.target.value)}
+                                onChange={(e) =>
+                                  setFeedbackText(e.target.value)
+                                }
                                 placeholder="How did we do? Any comments on our service..."
                                 className="w-full text-sm p-3 border border-emerald-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-100 bg-white"
                               />
@@ -823,7 +1033,9 @@ const Customer = () => {
                               disabled={submittingFeedback}
                               className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-semibold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-emerald-600/10 hover:shadow-emerald-600/20"
                             >
-                              {submittingFeedback ? "Submitting..." : "Submit Review"}
+                              {submittingFeedback
+                                ? "Submitting..."
+                                : "Submit Review"}
                             </button>
                           </form>
                         )}
@@ -850,30 +1062,44 @@ const Customer = () => {
                       {messagesLoading ? (
                         <div className="p-8 text-center flex flex-col items-center justify-center gap-2">
                           <RefreshCw className="h-6 w-6 text-slate-300 animate-spin" />
-                          <p className="text-xs text-slate-400">Loading conversation history...</p>
+                          <p className="text-xs text-slate-400">
+                            Loading conversation history...
+                          </p>
                         </div>
                       ) : messages.length > 0 ? (
                         <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
                           {messages.map((m) => {
                             const isMe = m.senderRole === "customer";
-                            const roleLabel = m.senderRole === "admin" ? "Admin" : m.senderRole === "agent" ? "Specialist" : "You";
+                            const roleLabel =
+                              m.senderRole === "admin"
+                                ? "Admin"
+                                : m.senderRole === "agent"
+                                  ? "Specialist"
+                                  : "You";
                             return (
                               <div
                                 key={m._id}
                                 className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
                               >
                                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-0.5 px-2">
-                                  <span className="font-semibold text-slate-500">{roleLabel}</span>
+                                  <span className="font-semibold text-slate-500">
+                                    {roleLabel}
+                                  </span>
                                   <span>•</span>
-                                  <span>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span>
+                                    {new Date(m.createdAt).toLocaleTimeString(
+                                      [],
+                                      { hour: "2-digit", minute: "2-digit" },
+                                    )}
+                                  </span>
                                 </div>
                                 <div
                                   className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                                     isMe
                                       ? "bg-indigo-600 text-white rounded-tr-none"
                                       : m.senderRole === "admin"
-                                      ? "bg-purple-50 text-purple-900 border border-purple-100 rounded-tl-none font-medium"
-                                      : "bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200/50"
+                                        ? "bg-purple-50 text-purple-900 border border-purple-100 rounded-tl-none font-medium"
+                                        : "bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200/50"
                                   }`}
                                 >
                                   {m.content}
@@ -886,7 +1112,10 @@ const Customer = () => {
                       ) : (
                         <div className="py-12 border border-dashed border-slate-100 rounded-2xl text-center flex flex-col items-center justify-center gap-2 text-slate-400">
                           <MessageSquare className="h-8 w-8 text-slate-200" />
-                          <p className="text-xs">No messages yet. Send a note below to start discussing.</p>
+                          <p className="text-xs">
+                            No messages yet. Send a note below to start
+                            discussing.
+                          </p>
                         </div>
                       )}
                     </div>
@@ -898,14 +1127,22 @@ const Customer = () => {
                       <input
                         type="text"
                         disabled={activeComplaint.status === "closed"}
-                        placeholder={activeComplaint.status === "closed" ? "This complaint is closed" : "Write a message to support..."}
+                        placeholder={
+                          activeComplaint.status === "closed"
+                            ? "This complaint is closed"
+                            : "Write a message to support..."
+                        }
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm placeholder:text-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 text-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                       <button
                         type="submit"
-                        disabled={sendingMessage || !newMessage.trim() || activeComplaint.status === "closed"}
+                        disabled={
+                          sendingMessage ||
+                          !newMessage.trim() ||
+                          activeComplaint.status === "closed"
+                        }
                         className="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl disabled:opacity-60 shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 shrink-0 flex items-center justify-center transition-all disabled:scale-100 hover:scale-105 active:scale-95"
                       >
                         <Send className="h-4.5 w-4.5" />

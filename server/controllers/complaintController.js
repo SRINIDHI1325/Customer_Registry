@@ -36,13 +36,53 @@ const getComplaints = async (req, res, next) => {
   try {
     let filter = {};
 
+    // Role-based filtering
     if (req.user.role === "customer") {
       filter.customer = req.user._id;
     } else if (req.user.role === "agent") {
       filter.assignedAgent = req.user._id;
-    } else if (req.user.role === "admin") {
-      if (req.query.status) filter.status = req.query.status;
-      if (req.query.agent) filter.assignedAgent = req.query.agent;
+    }
+
+    // Search by title or description (works for all roles)
+    if (req.query.search) {
+      filter.$or = [
+        { title: { $regex: req.query.search, $options: "i" } },
+        { description: { $regex: req.query.search, $options: "i" } },
+      ];
+    }
+
+    // Filter by status (works for all roles)
+    if (req.query.status) {
+      filter.status = req.query.status;
+    }
+
+    // Filter by category (works for all roles)
+    if (req.query.category) {
+      filter.category = req.query.category;
+    }
+
+    // Filter by priority (works for all roles)
+    if (req.query.priority) {
+      filter.priority = req.query.priority;
+    }
+
+    // Filter by agent (admin only)
+    if (req.query.agent && req.user.role === "admin") {
+      filter.assignedAgent = req.query.agent;
+    }
+
+    // Date range filtering (works for all roles)
+    if (req.query.dateFrom || req.query.dateTo) {
+      filter.createdAt = {};
+      if (req.query.dateFrom) {
+        filter.createdAt.$gte = new Date(req.query.dateFrom);
+      }
+      if (req.query.dateTo) {
+        // Add 1 day to include the entire end date
+        const endDate = new Date(req.query.dateTo);
+        endDate.setDate(endDate.getDate() + 1);
+        filter.createdAt.$lt = endDate;
+      }
     }
 
     const complaints = await Complaint.find(filter)

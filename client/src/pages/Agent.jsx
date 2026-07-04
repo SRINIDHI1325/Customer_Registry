@@ -52,8 +52,11 @@ const Agent = () => {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
 
   // Drawer / Chat state
   const [activeComplaint, setActiveComplaint] = useState(null);
@@ -70,7 +73,16 @@ const Agent = () => {
   const fetchComplaints = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const { data } = await API.get("/complaints/assigned");
+      // Build query string with filters
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (filterCategory) params.append("category", filterCategory);
+      if (filterPriority) params.append("priority", filterPriority);
+      if (filterStatus) params.append("status", filterStatus);
+      if (filterDateFrom) params.append("dateFrom", filterDateFrom);
+      if (filterDateTo) params.append("dateTo", filterDateTo);
+
+      const { data } = await API.get(`/complaints?${params.toString()}`);
       setComplaints(data.complaints || []);
     } catch (err) {
       console.error(err);
@@ -83,7 +95,14 @@ const Agent = () => {
 
   useEffect(() => {
     fetchComplaints();
-  }, []);
+  }, [
+    searchQuery,
+    filterCategory,
+    filterPriority,
+    filterStatus,
+    filterDateFrom,
+    filterDateTo,
+  ]);
 
   // Poll for messages when drawer is open
   useEffect(() => {
@@ -150,7 +169,7 @@ const Agent = () => {
       const { data } = await API.put(`/complaints/${id}/status`, { status });
       if (data.success) {
         showToast("Status updated successfully", "success");
-        
+
         // Update local complaint details if in drawer
         if (activeComplaint && activeComplaint._id === id) {
           setActiveComplaint((prev) => ({ ...prev, status }));
@@ -158,11 +177,14 @@ const Agent = () => {
 
         // Update list
         setComplaints((prev) =>
-          prev.map((c) => (c._id === id ? { ...c, status } : c))
+          prev.map((c) => (c._id === id ? { ...c, status } : c)),
         );
       }
     } catch (err) {
-      showToast(err.response?.data?.message || "Failed to update status", "error");
+      showToast(
+        err.response?.data?.message || "Failed to update status",
+        "error",
+      );
     }
   };
 
@@ -179,17 +201,28 @@ const Agent = () => {
 
   // Stats
   const totalAssigned = complaints.length;
-  const activeCases = complaints.filter((c) => ["open", "in-progress", "escalated"].includes(c.status)).length;
-  const inProgressCases = complaints.filter((c) => c.status === "in-progress").length;
-  const escalatedCases = complaints.filter((c) => c.status === "escalated").length;
-  const resolvedCases = complaints.filter((c) => c.status === "resolved").length;
+  const activeCases = complaints.filter((c) =>
+    ["open", "in-progress", "escalated"].includes(c.status),
+  ).length;
+  const inProgressCases = complaints.filter(
+    (c) => c.status === "in-progress",
+  ).length;
+  const escalatedCases = complaints.filter(
+    (c) => c.status === "escalated",
+  ).length;
+  const resolvedCases = complaints.filter(
+    (c) => c.status === "resolved",
+  ).length;
   const closedCases = complaints.filter((c) => c.status === "closed").length;
 
   // Performance Rating calculations
   const ratedComplaints = complaints.filter((c) => c.rating !== null);
   const averageRating =
     ratedComplaints.length > 0
-      ? (ratedComplaints.reduce((acc, curr) => acc + curr.rating, 0) / ratedComplaints.length).toFixed(1)
+      ? (
+          ratedComplaints.reduce((acc, curr) => acc + curr.rating, 0) /
+          ratedComplaints.length
+        ).toFixed(1)
       : "N/A";
 
   // Filter complaints based on view & parameters
@@ -197,22 +230,16 @@ const Agent = () => {
     let list = complaints;
 
     if (currentView === "resolved-archives") {
-      list = complaints.filter((c) => ["resolved", "closed"].includes(c.status));
+      list = complaints.filter((c) =>
+        ["resolved", "closed"].includes(c.status),
+      );
     } else if (currentView === "assigned-complaints") {
-      list = complaints.filter((c) => ["open", "in-progress", "escalated"].includes(c.status));
+      list = complaints.filter((c) =>
+        ["open", "in-progress", "escalated"].includes(c.status),
+      );
     }
 
-    return list.filter((c) => {
-      const matchesSearch =
-        c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.customer?.name && c.customer.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (c.customer?.email && c.customer.email.toLowerCase().includes(searchQuery.toLowerCase()));
-      const matchesPriority = filterPriority ? c.priority === filterPriority : true;
-      const matchesStatus = filterStatus ? c.status === filterStatus : true;
-
-      return matchesSearch && matchesPriority && matchesStatus;
-    });
+    return list;
   };
 
   const displayedComplaints = getFilteredComplaints();
@@ -230,12 +257,15 @@ const Agent = () => {
               Welcome back to your workspace
             </h1>
             <p className="text-slate-300 text-sm mt-1 max-w-xl">
-              Manage assigned user complaints, answer customers in real-time, and drive high customer satisfaction metrics.
+              Manage assigned user complaints, answer customers in real-time,
+              and drive high customer satisfaction metrics.
             </p>
           </div>
           <div className="flex items-center gap-4 bg-white/5 border border-white/10 p-3.5 rounded-2xl shrink-0">
             <div className="text-center px-2">
-              <span className="text-xs text-slate-400 block uppercase">CSAT Score</span>
+              <span className="text-xs text-slate-400 block uppercase">
+                CSAT Score
+              </span>
               <span className="text-xl font-bold font-mono text-yellow-400 mt-1 flex items-center justify-center gap-1">
                 <Star className="h-4.5 w-4.5 fill-yellow-400 text-yellow-400" />
                 {averageRating}
@@ -243,7 +273,9 @@ const Agent = () => {
             </div>
             <div className="h-8 border-l border-white/10" />
             <div className="text-center px-2">
-              <span className="text-xs text-slate-400 block uppercase">Active Cases</span>
+              <span className="text-xs text-slate-400 block uppercase">
+                Active Cases
+              </span>
               <span className="text-xl font-bold font-mono text-indigo-300 mt-1 block">
                 {activeCases}
               </span>
@@ -258,18 +290,42 @@ const Agent = () => {
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
-              { label: "Assigned Claims", count: totalAssigned, color: "text-slate-700 bg-white" },
-              { label: "In Progress", count: inProgressCases, color: "text-amber-600 bg-white" },
-              { label: "Escalated", count: escalatedCases, color: "text-red-600 bg-white" },
-              { label: "Resolved", count: resolvedCases, color: "text-emerald-600 bg-white" },
-              { label: "Closed Archive", count: closedCases, color: "text-slate-600 bg-white" },
+              {
+                label: "Assigned Claims",
+                count: totalAssigned,
+                color: "text-slate-700 bg-white",
+              },
+              {
+                label: "In Progress",
+                count: inProgressCases,
+                color: "text-amber-600 bg-white",
+              },
+              {
+                label: "Escalated",
+                count: escalatedCases,
+                color: "text-red-600 bg-white",
+              },
+              {
+                label: "Resolved",
+                count: resolvedCases,
+                color: "text-emerald-600 bg-white",
+              },
+              {
+                label: "Closed Archive",
+                count: closedCases,
+                color: "text-slate-600 bg-white",
+              },
             ].map((stat, idx) => (
               <div
                 key={idx}
                 className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow"
               >
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{stat.label}</p>
-                <h3 className={`text-3xl font-bold mt-2 font-mono ${stat.color.split(" ")[0]}`}>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  {stat.label}
+                </p>
+                <h3
+                  className={`text-3xl font-bold mt-2 font-mono ${stat.color.split(" ")[0]}`}
+                >
                   {stat.count}
                 </h3>
               </div>
@@ -289,17 +345,23 @@ const Agent = () => {
                   <div>
                     <div className="flex justify-between text-xs font-medium text-slate-500 mb-1.5">
                       <span>Active Workload Capacity</span>
-                      <span className="font-bold">{activeCases} / 15 Cases</span>
+                      <span className="font-bold">
+                        {activeCases} / 15 Cases
+                      </span>
                     </div>
                     <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-indigo-600 transition-all duration-500"
-                        style={{ width: `${Math.min((activeCases / 15) * 100, 100)}%` }}
+                        style={{
+                          width: `${Math.min((activeCases / 15) * 100, 100)}%`,
+                        }}
                       />
                     </div>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    Optimal workload allocation targets keeping active tickets under 10. If capacity exceeds 15, please request assistance from the supervisor.
+                    Optimal workload allocation targets keeping active tickets
+                    under 10. If capacity exceeds 15, please request assistance
+                    from the supervisor.
                   </p>
                 </div>
               </div>
@@ -324,7 +386,8 @@ const Agent = () => {
                   </div>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Reviews are gathered from resolved tickets. Maintain quality responses to maintain score above 4.5!
+                  Reviews are gathered from resolved tickets. Maintain quality
+                  responses to maintain score above 4.5!
                 </p>
               </div>
             </div>
@@ -332,9 +395,13 @@ const Agent = () => {
             {/* Right Column: Urgent Action Items */}
             <div className="md:col-span-2 space-y-4">
               <div className="flex justify-between items-center">
-                <h2 className="text-slate-800 font-bold text-lg">Action Items Needed</h2>
+                <h2 className="text-slate-800 font-bold text-lg">
+                  Action Items Needed
+                </h2>
                 <button
-                  onClick={() => setSearchParams({ view: "assigned-complaints" })}
+                  onClick={() =>
+                    setSearchParams({ view: "assigned-complaints" })
+                  }
                   className="text-indigo-600 hover:text-indigo-700 text-sm font-semibold flex items-center gap-1"
                 >
                   View All Active ({activeCases})
@@ -344,12 +411,18 @@ const Agent = () => {
               {loading ? (
                 <div className="bg-white p-12 rounded-2xl border border-slate-100 shadow-sm text-center flex flex-col items-center justify-center gap-3">
                   <RefreshCw className="h-8 w-8 text-slate-400 animate-spin" />
-                  <p className="text-sm text-slate-500">Loading assigned cases...</p>
+                  <p className="text-sm text-slate-500">
+                    Loading assigned cases...
+                  </p>
                 </div>
-              ) : complaints.filter((c) => ["open", "in-progress", "escalated"].includes(c.status)).length > 0 ? (
+              ) : complaints.filter((c) =>
+                  ["open", "in-progress", "escalated"].includes(c.status),
+                ).length > 0 ? (
                 <div className="space-y-4">
                   {complaints
-                    .filter((c) => ["open", "in-progress", "escalated"].includes(c.status))
+                    .filter((c) =>
+                      ["open", "in-progress", "escalated"].includes(c.status),
+                    )
                     .slice(0, 3)
                     .map((c) => (
                       <div
@@ -359,19 +432,30 @@ const Agent = () => {
                         <div className="flex justify-between items-start gap-4">
                           <div>
                             <div className="flex gap-2">
-                              <span className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[0]} ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[1]}`}>
+                              <span
+                                className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[0]} ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[1]}`}
+                              >
                                 {c.priority || "medium"}
                               </span>
                               <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border text-slate-500 bg-slate-50 border-slate-100">
-                                {CATEGORY_LABELS[c.category] || c.category || "General"}
+                                {CATEGORY_LABELS[c.category] ||
+                                  c.category ||
+                                  "General"}
                               </span>
                             </div>
-                            <h3 className="font-bold text-slate-800 text-base mt-2.5">{c.title}</h3>
+                            <h3 className="font-bold text-slate-800 text-base mt-2.5">
+                              {c.title}
+                            </h3>
                             <span className="text-xs text-slate-500 block mt-1 font-semibold tracking-wide">
-                              CUSTOMER: {c.customer?.name ? c.customer.name.toUpperCase() : "UNKNOWN"}
+                              CUSTOMER:{" "}
+                              {c.customer?.name
+                                ? c.customer.name.toUpperCase()
+                                : "UNKNOWN"}
                             </span>
                           </div>
-                          <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${STATUS_STYLES[c.status || "open"]}`}>
+                          <span
+                            className={`text-xs font-semibold px-3 py-1 rounded-full border ${STATUS_STYLES[c.status || "open"]}`}
+                          >
                             {c.status}
                           </span>
                         </div>
@@ -382,7 +466,10 @@ const Agent = () => {
 
                         <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
                           <span className="text-xs text-slate-400">
-                            Assigned on: {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ""}
+                            Assigned on:{" "}
+                            {c.createdAt
+                              ? new Date(c.createdAt).toLocaleDateString()
+                              : ""}
                           </span>
                           <button
                             onClick={() => openDrawer(c)}
@@ -397,10 +484,16 @@ const Agent = () => {
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-dashed border-slate-200 py-16 text-center flex flex-col items-center justify-center gap-3">
-                  <CheckCircle className="h-10 w-10 text-emerald-500" strokeWidth={1.5} />
-                  <p className="text-sm font-semibold text-slate-700">All caught up! No active cases</p>
+                  <CheckCircle
+                    className="h-10 w-10 text-emerald-500"
+                    strokeWidth={1.5}
+                  />
+                  <p className="text-sm font-semibold text-slate-700">
+                    All caught up! No active cases
+                  </p>
                   <p className="text-xs text-slate-500 max-w-[240px] mx-auto">
-                    Excellent! Any new claims assigned by the administrator will appear here.
+                    Excellent! Any new claims assigned by the administrator will
+                    appear here.
                   </p>
                 </div>
               )}
@@ -409,7 +502,8 @@ const Agent = () => {
         </div>
       )}
 
-      {(currentView === "assigned-complaints" || currentView === "resolved-archives") && (
+      {(currentView === "assigned-complaints" ||
+        currentView === "resolved-archives") && (
         <div className="space-y-6">
           {/* Filters Bar */}
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col lg:flex-row lg:items-center gap-4">
@@ -423,8 +517,23 @@ const Agent = () => {
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 text-sm outline-none transition-all text-slate-800 placeholder:text-slate-400"
               />
             </div>
-            
-            <div className="grid grid-cols-2 gap-3 shrink-0">
+
+            <div className="grid grid-cols-3 gap-2 shrink-0">
+              <div>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full border border-slate-200 px-3 py-3 rounded-xl text-xs text-slate-700 outline-none focus:border-indigo-400 bg-white"
+                >
+                  <option value="">All Categories</option>
+                  <option value="product">Product Issue</option>
+                  <option value="service">Service Inquiry</option>
+                  <option value="billing">Billing & Payments</option>
+                  <option value="technical">Technical Support</option>
+                  <option value="other">General Enquiry</option>
+                </select>
+              </div>
+
               <div>
                 <select
                   value={filterPriority}
@@ -466,13 +575,53 @@ const Agent = () => {
                 </div>
               )}
             </div>
+
+            {/* Date Range Filters */}
+            <div className="grid grid-cols-2 gap-2 shrink-0">
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="w-full border border-slate-200 px-3 py-3 rounded-xl text-xs text-slate-700 outline-none focus:border-indigo-400 bg-white"
+              />
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="w-full border border-slate-200 px-3 py-3 rounded-xl text-xs text-slate-700 outline-none focus:border-indigo-400 bg-white"
+              />
+            </div>
+
+            {/* Clear Filters Button */}
+            {(searchQuery ||
+              filterCategory ||
+              filterPriority ||
+              filterStatus ||
+              filterDateFrom ||
+              filterDateTo) && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilterCategory("");
+                  setFilterPriority("");
+                  setFilterStatus("");
+                  setFilterDateFrom("");
+                  setFilterDateTo("");
+                }}
+                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors shrink-0"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
 
           {/* List display */}
           {loading ? (
             <div className="bg-white p-24 rounded-2xl border border-slate-100 shadow-sm text-center flex flex-col items-center justify-center gap-3">
               <RefreshCw className="h-8 w-8 text-indigo-500 animate-spin" />
-              <p className="text-sm text-slate-500 font-medium">Fetching complaints...</p>
+              <p className="text-sm text-slate-500 font-medium">
+                Fetching complaints...
+              </p>
             </div>
           ) : displayedComplaints.length > 0 ? (
             <div className="grid md:grid-cols-2 gap-5">
@@ -484,7 +633,9 @@ const Agent = () => {
                   <div>
                     {/* Header */}
                     <div className="flex items-center gap-2">
-                      <span className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[0]} ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[1]}`}>
+                      <span
+                        className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[0]} ${PRIORITY_STYLES[c.priority || "medium"].split(" ")[1]}`}
+                      >
                         {c.priority || "medium"}
                       </span>
                       <span className="text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border text-slate-600 bg-slate-50 border-slate-100">
@@ -492,7 +643,9 @@ const Agent = () => {
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-slate-800 text-lg mt-3">{c.title}</h3>
+                    <h3 className="font-bold text-slate-800 text-lg mt-3">
+                      {c.title}
+                    </h3>
                     <p className="text-sm text-slate-500 mt-2.5 leading-relaxed line-clamp-3">
                       {c.description}
                     </p>
@@ -501,9 +654,15 @@ const Agent = () => {
                     <div className="mt-4 flex items-center gap-2 bg-slate-50 border border-slate-150 p-2.5 rounded-xl">
                       <User className="h-4 w-4 text-slate-500 shrink-0" />
                       <div className="text-xs text-slate-700">
-                        <span className="font-bold">{c.customer?.name ? c.customer.name.toUpperCase() : "UNKNOWN"}</span>
+                        <span className="font-bold">
+                          {c.customer?.name
+                            ? c.customer.name.toUpperCase()
+                            : "UNKNOWN"}
+                        </span>
                         <span className="mx-1">•</span>
-                        <span className="font-mono text-slate-500">{c.customer?.email || "No email"}</span>
+                        <span className="font-mono text-slate-500">
+                          {c.customer?.email || "No email"}
+                        </span>
                       </div>
                     </div>
 
@@ -513,7 +672,10 @@ const Agent = () => {
                         <div className="flex items-center gap-1.5 text-yellow-700 text-xs font-bold">
                           <div className="flex items-center gap-0.5">
                             {[...Array(c.rating)].map((_, i) => (
-                              <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                              <Star
+                                key={i}
+                                className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400"
+                              />
                             ))}
                           </div>
                           <span>Rating Review</span>
@@ -530,12 +692,16 @@ const Agent = () => {
                   <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
                     {/* Status Dropdown */}
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-semibold px-3 py-1.5 rounded-xl border ${STATUS_STYLES[c.status || "open"].split(" ")[0]} ${STATUS_STYLES[c.status || "open"].split(" ")[1]}`}>
+                      <span
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-xl border ${STATUS_STYLES[c.status || "open"].split(" ")[0]} ${STATUS_STYLES[c.status || "open"].split(" ")[1]}`}
+                      >
                         {c.status}
                       </span>
-                      
+
                       {/* Only allow changing status for active tickets */}
-                      {["open", "in-progress", "escalated"].includes(c.status) && (
+                      {["open", "in-progress", "escalated"].includes(
+                        c.status,
+                      ) && (
                         <select
                           value={c.status}
                           onChange={(e) => updateStatus(c._id, e.target.value)}
@@ -564,7 +730,9 @@ const Agent = () => {
           ) : (
             <div className="bg-white rounded-2xl border border-dashed border-slate-200 py-24 text-center flex flex-col items-center justify-center gap-3">
               <Inbox className="h-12 w-12 text-slate-300" strokeWidth={1.5} />
-              <p className="text-base font-bold text-slate-700">No complaints registered in this view</p>
+              <p className="text-base font-bold text-slate-700">
+                No complaints registered in this view
+              </p>
               <p className="text-xs text-slate-500 max-w-[280px] mx-auto mt-1">
                 Any tickets meeting search and filters criteria will list here.
               </p>
@@ -609,17 +777,28 @@ const Agent = () => {
                     {/* Complaint Overview Section */}
                     <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Ticket Overview</h3>
+                        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                          Ticket Overview
+                        </h3>
                         <div className="flex items-center gap-2">
-                          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[activeComplaint.status]}`}>
+                          <span
+                            className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[activeComplaint.status]}`}
+                          >
                             {activeComplaint.status}
                           </span>
-                          
+
                           {/* Inline Status Changer in Drawer */}
-                          {["open", "in-progress", "escalated"].includes(activeComplaint.status) && (
+                          {["open", "in-progress", "escalated"].includes(
+                            activeComplaint.status,
+                          ) && (
                             <select
                               value={activeComplaint.status}
-                              onChange={(e) => updateStatus(activeComplaint._id, e.target.value)}
+                              onChange={(e) =>
+                                updateStatus(
+                                  activeComplaint._id,
+                                  e.target.value,
+                                )
+                              }
                               className="border border-slate-200 text-xs p-1.5 rounded-lg outline-none bg-white font-medium"
                             >
                               <option value="open">Open</option>
@@ -631,30 +810,50 @@ const Agent = () => {
                           )}
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-4 text-xs">
                         <div>
-                          <p className="font-semibold text-slate-400">CATEGORY</p>
-                          <p className="font-bold text-slate-700 mt-1">{CATEGORY_LABELS[activeComplaint.category] || activeComplaint.category || "General"}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-400">PRIORITY</p>
-                          <p className="font-bold text-slate-700 mt-1 capitalize">{activeComplaint.priority || "medium"}</p>
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-400">CUSTOMER NAME</p>
+                          <p className="font-semibold text-slate-400">
+                            CATEGORY
+                          </p>
                           <p className="font-bold text-slate-700 mt-1">
-                            {activeComplaint.customer?.name ? activeComplaint.customer.name.toUpperCase() : "UNKNOWN"}
+                            {CATEGORY_LABELS[activeComplaint.category] ||
+                              activeComplaint.category ||
+                              "General"}
                           </p>
                         </div>
                         <div>
-                          <p className="font-semibold text-slate-400">CUSTOMER EMAIL</p>
-                          <p className="font-bold text-slate-700 mt-1 font-mono">{activeComplaint.customer?.email || "No email"}</p>
+                          <p className="font-semibold text-slate-400">
+                            PRIORITY
+                          </p>
+                          <p className="font-bold text-slate-700 mt-1 capitalize">
+                            {activeComplaint.priority || "medium"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-400">
+                            CUSTOMER NAME
+                          </p>
+                          <p className="font-bold text-slate-700 mt-1">
+                            {activeComplaint.customer?.name
+                              ? activeComplaint.customer.name.toUpperCase()
+                              : "UNKNOWN"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-400">
+                            CUSTOMER EMAIL
+                          </p>
+                          <p className="font-bold text-slate-700 mt-1 font-mono">
+                            {activeComplaint.customer?.email || "No email"}
+                          </p>
                         </div>
                       </div>
 
                       <div className="border-t border-slate-200 pt-3">
-                        <p className="text-xs font-semibold text-slate-400 uppercase">Customer Description</p>
+                        <p className="text-xs font-semibold text-slate-400 uppercase">
+                          Customer Description
+                        </p>
                         <p className="text-sm text-slate-600 mt-1 leading-relaxed whitespace-pre-line bg-white p-3 rounded-xl border border-slate-150 shadow-inner-sm">
                           {activeComplaint.description}
                         </p>
@@ -667,7 +866,10 @@ const Agent = () => {
                         <div className="flex items-center gap-1.5 text-yellow-800 text-sm font-bold">
                           <div className="flex items-center gap-0.5">
                             {[...Array(activeComplaint.rating)].map((_, i) => (
-                              <Star key={i} className="h-4.5 w-4.5 fill-yellow-400 text-yellow-400" />
+                              <Star
+                                key={i}
+                                className="h-4.5 w-4.5 fill-yellow-400 text-yellow-400"
+                              />
                             ))}
                           </div>
                           <span>CSAT Rating Submitted</span>
@@ -700,30 +902,44 @@ const Agent = () => {
                       {messagesLoading ? (
                         <div className="p-8 text-center flex flex-col items-center justify-center gap-2">
                           <RefreshCw className="h-6 w-6 text-slate-300 animate-spin" />
-                          <p className="text-xs text-slate-400">Loading conversation history...</p>
+                          <p className="text-xs text-slate-400">
+                            Loading conversation history...
+                          </p>
                         </div>
                       ) : messages.length > 0 ? (
                         <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
                           {messages.map((m) => {
                             const isMe = m.senderRole === "agent";
-                            const roleLabel = m.senderRole === "admin" ? "Admin" : m.senderRole === "customer" ? "Customer" : "You (Specialist)";
+                            const roleLabel =
+                              m.senderRole === "admin"
+                                ? "Admin"
+                                : m.senderRole === "customer"
+                                  ? "Customer"
+                                  : "You (Specialist)";
                             return (
                               <div
                                 key={m._id}
                                 className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
                               >
                                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-0.5 px-2">
-                                  <span className="font-semibold text-slate-500">{roleLabel}</span>
+                                  <span className="font-semibold text-slate-500">
+                                    {roleLabel}
+                                  </span>
                                   <span>•</span>
-                                  <span>{new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                  <span>
+                                    {new Date(m.createdAt).toLocaleTimeString(
+                                      [],
+                                      { hour: "2-digit", minute: "2-digit" },
+                                    )}
+                                  </span>
                                 </div>
                                 <div
                                   className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                                     isMe
                                       ? "bg-indigo-600 text-white rounded-tr-none"
                                       : m.senderRole === "admin"
-                                      ? "bg-purple-50 text-purple-900 border border-purple-100 rounded-tl-none font-medium"
-                                      : "bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200/50"
+                                        ? "bg-purple-50 text-purple-900 border border-purple-100 rounded-tl-none font-medium"
+                                        : "bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200/50"
                                   }`}
                                 >
                                   {m.content}
@@ -736,7 +952,10 @@ const Agent = () => {
                       ) : (
                         <div className="py-12 border border-dashed border-slate-100 rounded-2xl text-center flex flex-col items-center justify-center gap-2 text-slate-400">
                           <MessageSquare className="h-8 w-8 text-slate-200" />
-                          <p className="text-xs">No messages yet. Send a note below to start discussing.</p>
+                          <p className="text-xs">
+                            No messages yet. Send a note below to start
+                            discussing.
+                          </p>
                         </div>
                       )}
                     </div>
@@ -748,14 +967,22 @@ const Agent = () => {
                       <input
                         type="text"
                         disabled={activeComplaint.status === "closed"}
-                        placeholder={activeComplaint.status === "closed" ? "This complaint is closed" : "Reply to customer..."}
+                        placeholder={
+                          activeComplaint.status === "closed"
+                            ? "This complaint is closed"
+                            : "Reply to customer..."
+                        }
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm placeholder:text-slate-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 text-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
                       />
                       <button
                         type="submit"
-                        disabled={sendingMessage || !newMessage.trim() || activeComplaint.status === "closed"}
+                        disabled={
+                          sendingMessage ||
+                          !newMessage.trim() ||
+                          activeComplaint.status === "closed"
+                        }
                         className="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl disabled:opacity-60 shadow-md shadow-indigo-600/10 hover:shadow-indigo-600/20 shrink-0 flex items-center justify-center transition-all disabled:scale-100 hover:scale-105 active:scale-95"
                       >
                         <Send className="h-4.5 w-4.5" />
